@@ -84,7 +84,7 @@ var player = {
 		player.interactBox.fire("move");
 	    })
 	    .on("interact", function(e) {
-		if (tboxIntersect(player.interactBox, e.detail.object)) {
+		if (rboxIntersect(player.interactBox, e.detail.object)) {
 		    e.detail.object.fire("interact");}
 		else {text.render("");}});
 	this.interactBox = draw
@@ -164,11 +164,11 @@ var makeRandom = function (min, max) {
     return min + (max - min) * Math.random();
 }
 
-var tboxIntersect = function (shape1, shape2) {
+var rboxIntersect = function (shape1, shape2) {
 
     // extract values, for corners
-    var b1 = shape1.tbox();
-    var b2 = shape2.tbox();
+    var b1 = shape1.rbox();
+    var b2 = shape2.rbox();
     
     // check each corner
     return (shape1.inside(b2.x , b2.y) ||
