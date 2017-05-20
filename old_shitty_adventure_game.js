@@ -14,7 +14,7 @@ Array.prototype.myRemove = function (item) {
 
 // the minimum distance between an object's starting position
 // and the boundary of the screen
-var buffer = 20;
+var buffer = 10;
 
 // dimensions of window
 var width;
@@ -41,6 +41,7 @@ var offsetY;
 
 // the player character
 var player;
+var playerSize = 40;
 
 // the player's direction of movement, determined by kepresses
 var dirX = 0; var dirXp = 0;
@@ -48,6 +49,15 @@ var dirY = 0; var dirYp = 0;
 
 // speed of the player character
 var speed = 4;
+
+// the player's interaction box
+var interactBox;
+
+// the box
+var box;
+
+// the text
+var text;
 
 // ================================
 // ================================================================
@@ -90,11 +100,15 @@ var inBounds = function (x, y) {
     return inBoundsX(x) && inBoundsY(y);
 }
 
-var inBoundsX = function (x) {
+var inBoundsX = function (x, ...args) {
+    var buffer = typeof args[0] === "undefined" ?
+	0 : args[0];
     return between(buffer, x, width - buffer);
 }
 
-var inBoundsY = function (y) {
+var inBoundsY = function (y, ...args) {
+    var buffer = typeof args[0] === "undefined" ?
+	0 : args[0];
     return between(buffer, y, height - buffer);
 }
 
@@ -107,30 +121,78 @@ var makeRandom = function (min, max) {
     return min + (max - min) * Math.random();
 }
 
+var tboxIntersect = function (shape1, shape2) {
+
+    // extract values, for corners
+    var b1 = shape1.tbox();
+    var b2 = shape2.tbox();
+    
+    // check each corner
+    return (shape1.inside(b2.x , b2.y) ||
+            shape1.inside(b2.x , b2.y2) ||
+            shape1.inside(b2.x2, b2.y) ||
+            shape1.inside(b2.x2, b2.y2) ||
+
+            shape2.inside(b1.x , b1.y) ||
+            shape2.inside(b1.x , b1.y2) ||
+            shape2.inside(b1.x2, b1.y) ||
+            shape2.inside(b1.x2, b1.y2)
+           );
+}
+
 // ================================
 
 // CREATORS
 // --------------------------------
 
 var makePlayer = function() {
+    interactBox = draw
+	.center(width/2, height/2)
+	.rect(playerSize*3,
+	      playerSize*3)
+	.opacity(0)
+	.on("move", function(e) {
+	    this.center(player.cx(),
+			player.cy());
+	});
+    
     return draw
-	.rect(40, 40)
+	.rect(playerSize, playerSize)
 	.front()
 	.fill("red")
-	.center(width / 2, height / 2)
+	.center(width/2, height/2)
 	.on("move", function (e) {
-	    var newX = this.x() + speed * dirX;
-	    var newY = this.y() + speed * dirY;
+	    var newX = this.cx() + speed * dirX;
+	    var newY = this.cy() + speed * dirY;
 
-	    if (inBoundsX(newX)) {
-		this.move(newX, this.y());
+	    if (inBoundsX(newX, playerSize)) {
+		this.center(newX, this.cy());
 	    }
-	    if (inBoundsY(newY)) {
-		this.move(this.x(), newY);
+	    if (inBoundsY(newY, playerSize)) {
+		this.center(this.cx(), newY);
+	    }
+	    interactBox.fire("move");
+	})
+	.on("interact", function(e) {
+	    if (tboxIntersect(interactBox, box)) {
+		box.fire("interact");
+	    }
+	    else {
+		text.clear();
 	    }
 	});
 }
 
+var makeBox = function () {
+    return draw
+	.rect(100, 20)
+	.front()
+	.fill("black")
+	.center(width / 2, height / 2 + 200)
+	.on("interact", function(e) {
+	    render("You win!");
+	});
+}
 
 var makeBG = function () {
     return draw
@@ -139,7 +201,19 @@ var makeBG = function () {
 	.fill("rgb(230, 255, 230)");
 }
 
+var makeText = function() {
+    return draw.text("")
+    	.fill("rgb(30, 55, 30)")
+	// .font("size", 32)
+	.move(10, height - 100);
+}
+
 // ================================
+
+var render = function(string) {
+    return text.text(string);
+}
+
 // ================================================================
 
 
@@ -169,6 +243,8 @@ var setGameInput = function () {
 	case 83: dirY =  1; break;
 	    // D
 	case 68: dirX =  1; break;
+	    // E
+	case 69: player.fire("interact"); break;
 	}
     }
 
@@ -198,6 +274,8 @@ var setGameInput = function () {
 var start = function () {
     makeWindow();
     player = makePlayer();
+    box = makeBox();
+    text = makeText();
     makeBG();
     setGameInput();
 }
@@ -210,6 +288,3 @@ var loop = function (timestamp) {
 start();
 var lastRender = 0;
 window.requestAnimationFrame(loop);
-
-
-
