@@ -151,6 +151,7 @@ var player = {
 		    e.detail.object.fire("interact");}
 		// if not, clear the text field
 		else {text.render("");}});
+	
 	// the player's interaction box
 	this.interactBox = draw
 	// color and location and stuff
@@ -166,6 +167,10 @@ var player = {
 
 // the box, an interactable object in the game world
 var box = {
+    // box's dimensions and whatnot
+    width: 100,
+    height: 20,
+    
     // again, the box's SVG object
     object: undefined,
     
@@ -173,7 +178,7 @@ var box = {
     init: function () {
 	this.object = draw
 	// colors n stuff
-	    .rect(100, 20)
+	    .rect(this.width, this.height)
 	    .front()
 	    .fill("black")
 	    .center(world.width / 2, world.height / 2 + 200)
