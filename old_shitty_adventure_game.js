@@ -1,11 +1,16 @@
 "use strict";
 
+// a personalized remove function:
+// removes an element only if it's found
 Array.prototype.myRemove = function (item) {
     var index = this.index(item);
     if (index > -1) {
         this.splice(index, 1);
     }
 }
+
+// GAME OBJECTS
+// ----------------------------------------------------------------
 
 // the SVG object
 var draw;
@@ -24,16 +29,49 @@ var world = {
     offsetX: 0,
     offsetY: 0,
 
+    // functions to check if a point is in bounds
+    inBounds: function (x, y) {
+	return this.inBoundsX(x) && this.inBoundsY(y);
+    },
+
+    // X check
+    // note: a second argument as in inBoundsX(a, b)
+    // will attempt to add b to the buffer, effectively shrinking
+    // the window for the object; use this with an object's size so that
+    // the edges of the object don't fall off the screen.
+    // functionality also exists for Y
+    inBoundsX: function (x) {
+	// variable args handling
+	var buffer = this.buffer +
+	    typeof arguments[1] === "undefined" ?
+	    0 : arguments[1];
+	
+	return between(buffer, x, this.width - buffer);
+    },
+
+    // Y check, see above for variable args
+    inBoundsY: function (y) {
+	// variable args handling
+	var buffer = this.buffer +
+	    typeof arguments[1] === "undefined" ?
+	    0 : arguments[1];
+	
+	return between(buffer, y, this.height - buffer);
+    },
+
     // initialization function
     init: function () {
 	// window boundaries
 	// thanks to:
 	// http://stackoverflow.com/questions/3437786/get-the-size-of-the-screen-current-web-page-and-browser-window
+
+	// find relevant information
 	var w = window;
 	var d = document;
 	var e = d.documentElement;
 	var g = d.getElementsByTagName('body')[0];
 
+	// set the global width and height based on relevant information
 	this.width = Math.min(w.innerWidth,
 			      e.clientWidth,
 			      g.clientWidth) - this.buffer * 3;
@@ -41,13 +79,16 @@ var world = {
 			       e.clientHeight,
 			       g.clientHeight) - this.buffer * 3;
 
+	// y'know just in case
 	if (draw !== undefined) {
             draw.remove();
 	}
 
+	// set the main SVG element
 	var canvas = document.getElementById("drawing");
 	draw = SVG(canvas).size(this.width, this.height);
 
+	// set offsetX and offsetY
 	var border = canvas.getBoundingClientRect();
 	this.offsetX = border.left;
 	this.offsetY = border.top;
@@ -56,112 +97,140 @@ var world = {
 
 // the player character
 var player = {
+    // first, some numbers of interest
+    // the player's direction, as well as its previous direction
     dirX: 0, dirXp: 0,
     dirY: 0, dirYp: 0,
+    // the player's speed
     speed: 4,
+    // the player's size (also determines size of interaction box)
     size: 40,
+    
+    // the player's SVG object
     object: undefined,
+    // the player's "radius of interaction, another SVG object
     interactBox: undefined,
+    
+    // init function
     init: function () {
+	// define the player's SVG object
 	this.object = draw
+	// location and color and stuff
 	    .rect(player.size, player.size)
 	    .front()
 	    .fill("red")
 	    .center(world.width/2, world.height/2)
+	// triggers
+	// update on game tick
 	    .on("update", function(e) {
 		this.fire("move");
 	    })
+	// function to move
 	    .on("move", function (e) {
+		// find the new coordinates
 		var newX = this.cx() + player.speed * player.dirX;
 		var newY = this.cy() + player.speed * player.dirY;
-
-		if (inBoundsX(newX, player.size)) {
+		// move in X if valid
+		if (world.inBoundsX(newX, player.size)) {
 		    this.center(newX, this.cy());
 		}
-		if (inBoundsY(newY, player.size)) {
+		// move in Y if valid
+		if (world.inBoundsY(newY, player.size)) {
 		    this.center(this.cx(), newY);
 		}
+		// these are separate for consistent behavior on diagonal move
+
+		// also tell the interaction box to move
 		player.interactBox.fire("move");
 	    })
+	// function to interact
+	// when called, e.detail.object should be the object to interact with
 	    .on("interact", function(e) {
+		// if they collide, interact, which will usually change the text field
 		if (rboxIntersect(player.interactBox, e.detail.object)) {
 		    e.detail.object.fire("interact");}
+		// if not, clear the text field
 		else {text.render("");}});
+	// the player's interaction box
 	this.interactBox = draw
+	// color and location and stuff
     	    .rect(player.size*3, player.size*3)
 	    .center(world.width/2, world.height/2)
 	    .opacity(0)
+	// when told to move, just recenter on the player's coordinates
 	    .on("move", function(e) {
 		this.center(player.object.cx(),
 			    player.object.cy());});
     }
 };
 
-// the box
+// the box, an interactable object in the game world
 var box = {
+    // again, the box's SVG object
     object: undefined,
+    
+    // init function
     init: function () {
 	this.object = draw
+	// colors n stuff
 	    .rect(100, 20)
 	    .front()
 	    .fill("black")
 	    .center(world.width / 2, world.height / 2 + 200)
+	// all interacting does is make the game say that you won,
+	// and change the background color
 	    .on("interact", function(e) {
 		text.render("You win!");
+		bg.colorize(bg.success);
 	    });
     }
 };
 
-// the text
+// the text field at the bottom of the screen
 var text = {
+    // SVG object
     object: undefined,
+    
+    // text.render will make text appear at the bottom of the screen
     render: function (string) {
 	return this.object.text(string);
     },
+    // init function
     init: function () {
 	this.object = draw.text("")
     	    .fill("rgb(30, 55, 30)")
+	// TODO: make constants into variables somewhere
 	    .move(10, world.height - 100);
     }
 };
 
+// the background
 var bg = {
+    // SVG object
     object: undefined,
-    init: function() {
+    // colors for win-state and not-won-state
+    success: "rgb(230,255,230)",
+    failure: "rgb(255,240,240)",
+    // function to change color
+    
+    colorize: function (color) {
+	this.object.fill(color);
+    },
+    // init function
+    init: function () {
 	this.object = draw
             .rect(world.width, world.height)
             .back()
-	    .fill("rgb(230, 255, 230)");
+	// game should start in not-won-state
+	    .fill(this.failure);
     }
 }
+// ================================================================
 
 // MISC. HELPERS
 // ----------------------------------------------------------------
-var inBounds = function (x, y) {
-    return inBoundsX(x) && inBoundsY(y);
-}
-
-var inBoundsX = function (x, ...args) {
-    var buffer = world.buffer +
-	typeof args[0] === "undefined" ?
-	0 : args[0];
-    return between(buffer, x, world.width - buffer);
-}
-
-var inBoundsY = function (y, ...args) {
-    var buffer = world.buffer +
-	typeof args[0] === "undefined" ?
-	0 : args[0];
-    return between(buffer, y, world.height - buffer);
-}
-
 var between = function (a, b, c) {
     return (a < b && b < c);
-}
-
-// random number between min and max
-var makeRandom = function (min, max) {
-    return min + (max - min) * Math.random();
 }
 
 var rboxIntersect = function (shape1, shape2) {
