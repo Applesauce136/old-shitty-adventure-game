@@ -7,109 +7,152 @@ Array.prototype.myRemove = function (item) {
     }
 }
 
-// VALUES
-// ----------------------------------------------------------------
-// NUMERICS
-// --------------------------------
-
-// the minimum distance between an object's starting position
-// and the boundary of the screen
-var buffer = 10;
-
-// dimensions of window
-var width;
-var height;
-// ================================
-
-// SVG GENERAL
-// --------------------------------
-
-var canvas;
-
 // the SVG object
 var draw;
 
-// offset of SVG canvas, for mouse purposes
-var border;
-var offsetX;
-var offsetY;
+// properties of the game world
+var world = {
+    // width and height of the game world
+    width: 0,
+    height: 0,
 
-// ================================
+    // the minimum distance between an object's starting position
+    // and the boundary of the screen
+    buffer: 10,
+    
+    // offset of SVG canvas, for mouse purposes
+    offsetX: 0,
+    offsetY: 0,
 
-// SVG MINE
-// --------------------------------
+    // initialization function
+    init: function () {
+	// window boundaries
+	// thanks to:
+	// http://stackoverflow.com/questions/3437786/get-the-size-of-the-screen-current-web-page-and-browser-window
+	var w = window;
+	var d = document;
+	var e = d.documentElement;
+	var g = d.getElementsByTagName('body')[0];
+
+	this.width = Math.min(w.innerWidth,
+			      e.clientWidth,
+			      g.clientWidth) - this.buffer * 3;
+	this.height = Math.min(w.innerHeight,
+			       e.clientHeight,
+			       g.clientHeight) - this.buffer * 3;
+
+	if (draw !== undefined) {
+            draw.remove();
+	}
+
+	var canvas = document.getElementById("drawing");
+	draw = SVG(canvas).size(this.width, this.height);
+
+	var border = canvas.getBoundingClientRect();
+	this.offsetX = border.left;
+	this.offsetY = border.top;
+    }
+};
 
 // the player character
-var player;
-var playerSize = 40;
+var player = {
+    dirX: 0, dirXp: 0,
+    dirY: 0, dirYp: 0,
+    speed: 4,
+    size: 40,
+    object: undefined,
+    interactBox: undefined,
+    init: function () {
+	this.object = draw
+	    .rect(player.size, player.size)
+	    .front()
+	    .fill("red")
+	    .center(world.width/2, world.height/2)
+	    .on("update", function(e) {
+		this.fire("move");
+	    })
+	    .on("move", function (e) {
+		var newX = this.cx() + player.speed * player.dirX;
+		var newY = this.cy() + player.speed * player.dirY;
 
-// the player's direction of movement, determined by kepresses
-var dirX = 0; var dirXp = 0;
-var dirY = 0; var dirYp = 0;
-
-// speed of the player character
-var speed = 4;
-
-// the player's interaction box
-var interactBox;
+		if (inBoundsX(newX, player.size)) {
+		    this.center(newX, this.cy());
+		}
+		if (inBoundsY(newY, player.size)) {
+		    this.center(this.cx(), newY);
+		}
+		player.interactBox.fire("move");
+	    })
+	    .on("interact", function(e) {
+		if (tboxIntersect(player.interactBox, e.detail.object)) {
+		    e.detail.object.fire("interact");}
+		else {text.render("");}});
+	this.interactBox = draw
+    	    .rect(player.size*3, player.size*3)
+	    .center(world.width/2, world.height/2)
+	    .opacity(0)
+	    .on("move", function(e) {
+		this.center(player.object.cx(),
+			    player.object.cy());});
+    }
+};
 
 // the box
-var box;
+var box = {
+    object: undefined,
+    init: function () {
+	this.object = draw
+	    .rect(100, 20)
+	    .front()
+	    .fill("black")
+	    .center(world.width / 2, world.height / 2 + 200)
+	    .on("interact", function(e) {
+		text.render("You win!");
+	    });
+    }
+};
 
 // the text
-var text;
-
-// ================================
-// ================================================================
-
-var makeWindow = function () {
-
-    // window boundaries
-    // thanks to:
-    // http://stackoverflow.com/questions/3437786/get-the-size-of-the-screen-current-web-page-and-browser-window
-    var w = window;
-    var d = document;
-    var e = d.documentElement;
-    var g = d.getElementsByTagName('body')[0];
-
-    width = Math.min(w.innerWidth,
-                     e.clientWidth,
-                     g.clientWidth) - buffer * 3;
-    height = Math.min(w.innerHeight,
-                      e.clientHeight,
-                      g.clientHeight) - buffer * 3;
-
-    if (draw !== undefined) {
-        draw.remove();
+var text = {
+    object: undefined,
+    render: function (string) {
+	return this.object.text(string);
+    },
+    init: function () {
+	this.object = draw.text("")
+    	    .fill("rgb(30, 55, 30)")
+	    .move(10, world.height - 100);
     }
+};
 
-    canvas = document.getElementById("drawing");
-    draw = SVG(canvas).size(width, height);
-
-    border = canvas.getBoundingClientRect();
-    offsetX = border.left;
-    offsetY = border.top;
+var bg = {
+    object: undefined,
+    init: function() {
+	this.object = draw
+            .rect(world.width, world.height)
+            .back()
+	    .fill("rgb(230, 255, 230)");
+    }
 }
 
-// FUNCTIONS
-// ----------------------------------------------------------------
-
 // MISC. HELPERS
-// --------------------------------
+// ----------------------------------------------------------------
 var inBounds = function (x, y) {
     return inBoundsX(x) && inBoundsY(y);
 }
 
 var inBoundsX = function (x, ...args) {
-    var buffer = typeof args[0] === "undefined" ?
+    var buffer = world.buffer +
+	typeof args[0] === "undefined" ?
 	0 : args[0];
-    return between(buffer, x, width - buffer);
+    return between(buffer, x, world.width - buffer);
 }
 
 var inBoundsY = function (y, ...args) {
-    var buffer = typeof args[0] === "undefined" ?
+    var buffer = world.buffer +
+	typeof args[0] === "undefined" ?
 	0 : args[0];
-    return between(buffer, y, height - buffer);
+    return between(buffer, y, world.height - buffer);
 }
 
 var between = function (a, b, c) {
@@ -140,80 +183,6 @@ var tboxIntersect = function (shape1, shape2) {
            );
 }
 
-// ================================
-
-// CREATORS
-// --------------------------------
-
-var makePlayer = function() {
-    interactBox = draw
-	.center(width/2, height/2)
-	.rect(playerSize*3,
-	      playerSize*3)
-	.opacity(0)
-	.on("move", function(e) {
-	    this.center(player.cx(),
-			player.cy());
-	});
-    
-    return draw
-	.rect(playerSize, playerSize)
-	.front()
-	.fill("red")
-	.center(width/2, height/2)
-	.on("move", function (e) {
-	    var newX = this.cx() + speed * dirX;
-	    var newY = this.cy() + speed * dirY;
-
-	    if (inBoundsX(newX, playerSize)) {
-		this.center(newX, this.cy());
-	    }
-	    if (inBoundsY(newY, playerSize)) {
-		this.center(this.cx(), newY);
-	    }
-	    interactBox.fire("move");
-	})
-	.on("interact", function(e) {
-	    if (tboxIntersect(interactBox, box)) {
-		box.fire("interact");
-	    }
-	    else {
-		text.clear();
-	    }
-	});
-}
-
-var makeBox = function () {
-    return draw
-	.rect(100, 20)
-	.front()
-	.fill("black")
-	.center(width / 2, height / 2 + 200)
-	.on("interact", function(e) {
-	    render("You win!");
-	});
-}
-
-var makeBG = function () {
-    return draw
-        .rect(width, height)
-        .back()
-	.fill("rgb(230, 255, 230)");
-}
-
-var makeText = function() {
-    return draw.text("")
-    	.fill("rgb(30, 55, 30)")
-	// .font("size", 32)
-	.move(10, height - 100);
-}
-
-// ================================
-
-var render = function(string) {
-    return text.text(string);
-}
-
 // ================================================================
 
 
@@ -234,17 +203,17 @@ var setGameInput = function () {
 
 	switch (key) {
 	    // shift
-	case 16: speed = 12; break;
+	case 16: player.speed = 12; break;
 	    // W
-	case 87: dirY = -1; break;
+	case 87: player.dirY = -1; break;
 	    // A
-	case 65: dirX = -1; break;
+	case 65: player.dirX = -1; break;
 	    // S
-	case 83: dirY =  1; break;
+	case 83: player.dirY =  1; break;
 	    // D
-	case 68: dirX =  1; break;
+	case 68: player.dirX =  1; break;
 	    // E
-	case 69: player.fire("interact"); break;
+	case 69: player.object.fire("interact", {object: box.object}); break;
 	}
     }
 
@@ -256,15 +225,15 @@ var setGameInput = function () {
 
 	switch (key) {
 	    // shift
-	case 16: speed = 4; break;
+	case 16: player.speed = 4; break;
 	    // W
-	case 87: dirY = 0; break;
+	case 87: player.dirY = 0; break;
 	    // A
-	case 65: dirX = 0; break;
+	case 65: player.dirX = 0; break;
 	    // S
-	case 83: dirY = 0; break;
+	case 83: player.dirY = 0; break;
 	    // D
-	case 68: dirX = 0; break;
+	case 68: player.dirX = 0; break;
 	}
     }
 }
@@ -272,16 +241,16 @@ var setGameInput = function () {
 // ================================================================
 
 var start = function () {
-    makeWindow();
-    player = makePlayer();
-    box = makeBox();
-    text = makeText();
-    makeBG();
+    world.init();
+    player.init();
+    box.init();
+    text.init();
+    bg.init();
     setGameInput();
 }
 
 var loop = function (timestamp) {
-    player.fire("move", dirX, dirY);
+    player.object.fire("update");
     window.requestAnimationFrame(loop);
 }
 
