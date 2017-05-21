@@ -154,11 +154,13 @@ var player = {
 		var interacted = false;
 		// if they collide, interact, which will usually change the text field
 		for (var key in entities) {
-		    var entity = entities[key];
-		    if (rboxIntersect(player.interactBox, entity.object)) {
-			entity.object.fire("interact");
-			interacted = true;
-			break;
+		    if (entities.hasOwnProperty(key)) {
+			var entity = entities[key];
+			if (rboxIntersect(player.interactBox, entity.object)) {
+			    entity.object.fire("interact");
+			    interacted = true;
+			    break;
+			}
 		    }
 		}
 		// if not, clear the text field
@@ -366,7 +368,9 @@ var start = function () {
     world.init();
     player.init();
     for (var key in entities) {
-	entities[key].init();
+	if (entities.hasOwnProperty(key)) {
+	    entities[key].init();
+	}
     }
     text.init();
     bg.init();
@@ -378,6 +382,8 @@ var loop = function (timestamp) {
     window.requestAnimationFrame(loop);
 }
 
+var button = document.getElementById("button");
+button.addEventListener("click", function () { start(); });
+
 start();
-var lastRender = 0;
 window.requestAnimationFrame(loop);
