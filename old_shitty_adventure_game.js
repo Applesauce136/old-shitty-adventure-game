@@ -81,7 +81,7 @@ var world = {
 	this.height = Math.min(w.innerHeight,
 			       e.clientHeight,
 			       g.clientHeight) - this.buffer * 3
-	 - 135 // this is to compensate for the text at the top of the screen
+	 - 170 // this is to compensate for the text at the top of the screen
 	// TODO: make this smarter
 	;
 
@@ -98,6 +98,8 @@ var world = {
 	var border = canvas.getBoundingClientRect();
 	this.offsetX = border.left;
 	this.offsetY = border.top;
+
+	this.success = false;
     }
 };
 
@@ -107,6 +109,9 @@ var player = {
     // the player's direction
     dirX: 0,
     dirY: 0,
+    // expressed in terms of the world's dimensions
+    xloc: 1/2,
+    yloc: 1/2,
     // the player's speed
     speed: 4,
     // the player's size (also determines size of interaction box)
@@ -125,7 +130,7 @@ var player = {
 	    .rect(player.size, player.size)
 	    .front()
 	    .fill("red")
-	    .center(world.width/2, world.height/2)
+	    .center(world.width * this.xloc, world.height * this.yloc)
 	// triggers
 	// update on game tick
 	    .on("update", function(e) {
@@ -185,6 +190,11 @@ var player = {
 
 // the text field at the bottom of the screen
 var text = {
+    // dimensions and stuff
+    // expressed ITO the dimensions of the world
+    xloc: 1/100,
+    yloc: 7/8,
+    
     // SVG object
     object: undefined,
     
@@ -197,7 +207,7 @@ var text = {
 	this.object = draw.text("")
     	    .fill("rgb(30, 55, 30)")
 	// TODO: make constants into variables somewhere
-	    .move(10, world.height - 100);
+	    .move(world.width * this.xloc, world.height * this.yloc);
     }
 };
 
@@ -230,6 +240,9 @@ var entities = {
 	// box's dimensions and whatnot
 	width: 100,
 	height: 20,
+	// location expressed as a fraction of the world's dimensions
+	xloc: 1/2,
+	yloc: 3/4,
 	
 	// again, the box's SVG object
 	object: undefined,
@@ -241,12 +254,17 @@ var entities = {
 		.rect(this.width, this.height)
 		.front()
 		.fill("black")
-		.center(world.width / 2, world.height / 2 + 300)
+		.center(world.width * this.xloc, world.height * this.yloc)
 	    // all interacting does is make the game say that you won,
 	    // and change the background color
 		.on("interact", function(e) {
-		    world.success = true;
-		    text.render("You win!");
+		    if (!world.success) {
+			world.success = true;
+			text.render("You win!");
+		    }
+		    else {
+			text.render("You already won, genius.");
+		    }
 		    bg.update();
 		});
 	}
@@ -257,6 +275,9 @@ var entities = {
 	// dimensions
 	width: 35,
 	height: 40,
+	// expressed ITO the world's dimensions
+	xloc: 6/10,
+	yloc: 1/2,
 
 	// SVG object
 	object: undefined,
@@ -268,7 +289,7 @@ var entities = {
 		.rect(this.width, this.height)
 		.front()
 		.fill("pink")
-		.center(world.width/2 + 300, world.height/2)
+		.center(world.width * this.xloc, world.height * this.yloc)
 	    // display dialogue
 		.on("interact", function(e) {
 		    if (world.success) {
@@ -290,6 +311,7 @@ var between = function (a, b, c) {
     return (a < b && b < c);
 }
 
+// check if two objects collide, based on bounding boxes
 var rboxIntersect = function (shape1, shape2) {
 
     // extract values, for corners
@@ -318,10 +340,8 @@ var setGameInput = function () {
 
     // KEYBOARD PROCESSING THINGS
     // --------------------------------
-
     // when a key is pressed
     document.onkeydown = function (e) {
-
         // get the key
         var key = e.which || e.keyCode;
 
@@ -343,7 +363,6 @@ var setGameInput = function () {
 
     // when a key is released
     document.onkeyup = function (e) {
-
         // get the key
         var key = e.which || e.keyCode;
 
@@ -360,8 +379,8 @@ var setGameInput = function () {
 	case 68: player.dirX = 0; break;
 	}
     }
+    // ================================
 }
-// ================================
 // ================================================================
 
 var start = function () {
