@@ -29,6 +29,9 @@ var world = {
     offsetX: 0,
     offsetY: 0,
 
+    // whether or not we've won the game; starts false
+    success: false,
+    
     // functions to check if a point is in bounds
     inBounds: function (x, y) {
 	return this.inBoundsX(x) && this.inBoundsY(y);
@@ -77,7 +80,10 @@ var world = {
 			      g.clientWidth) - this.buffer * 3;
 	this.height = Math.min(w.innerHeight,
 			       e.clientHeight,
-			       g.clientHeight) - this.buffer * 3;
+			       g.clientHeight) - this.buffer * 3
+	 - 135 // this is to compensate for the text at the top of the screen
+	// TODO: make this smarter
+	;
 
 	// y'know just in case
 	if (draw !== undefined) {
@@ -98,9 +104,9 @@ var world = {
 // the player character
 var player = {
     // first, some numbers of interest
-    // the player's direction, as well as its previous direction
-    dirX: 0, dirXp: 0,
-    dirY: 0, dirYp: 0,
+    // the player's direction
+    dirX: 0,
+    dirY: 0,
     // the player's speed
     speed: 4,
     // the player's size (also determines size of interaction box)
@@ -108,7 +114,7 @@ var player = {
     
     // the player's SVG object
     object: undefined,
-    // the player's "radius of interaction, another SVG object
+    // the player's "radius of interaction", another SVG object
     interactBox: undefined,
     
     // init function
@@ -144,13 +150,22 @@ var player = {
 		player.interactBox.fire("move");
 	    })
 	// function to interact
-	// when called, e.detail.object should be the object to interact with
 	    .on("interact", function(e) {
+		var interacted = false;
 		// if they collide, interact, which will usually change the text field
-		if (rboxIntersect(player.interactBox, e.detail.object)) {
-		    e.detail.object.fire("interact");}
+		for (var key in entities) {
+		    var entity = entities[key];
+		    if (rboxIntersect(player.interactBox, entity.object)) {
+			entity.object.fire("interact");
+			interacted = true;
+			break;
+		    }
+		}
 		// if not, clear the text field
-		else {text.render("");}});
+		if (!interacted) {
+		    text.render("");
+		}
+	    });
 	
 	// the player's interaction box
 	this.interactBox = draw
@@ -161,32 +176,7 @@ var player = {
 	// when told to move, just recenter on the player's coordinates
 	    .on("move", function(e) {
 		this.center(player.object.cx(),
-			    player.object.cy());});
-    }
-};
-
-// the box, an interactable object in the game world
-var box = {
-    // box's dimensions and whatnot
-    width: 100,
-    height: 20,
-    
-    // again, the box's SVG object
-    object: undefined,
-    
-    // init function
-    init: function () {
-	this.object = draw
-	// colors n stuff
-	    .rect(this.width, this.height)
-	    .front()
-	    .fill("black")
-	    .center(world.width / 2, world.height / 2 + 200)
-	// all interacting does is make the game say that you won,
-	// and change the background color
-	    .on("interact", function(e) {
-		text.render("You win!");
-		bg.colorize(bg.success);
+			    player.object.cy());
 	    });
     }
 };
@@ -218,8 +208,8 @@ var bg = {
     failure: "rgb(255,240,240)",
     // function to change color
     
-    colorize: function (color) {
-	this.object.fill(color);
+    update: function () {
+	this.object.fill(world.success ? this.success : this.failure);
     },
     // init function
     init: function () {
@@ -230,6 +220,66 @@ var bg = {
 	    .fill(this.failure);
     }
 }
+
+// an array of objects in the game world
+var entities = {
+    // a black box in the middle of the screen
+    box: {
+	// box's dimensions and whatnot
+	width: 100,
+	height: 20,
+	
+	// again, the box's SVG object
+	object: undefined,
+	
+	// init function
+	init: function () {
+	    this.object = draw
+	    // colors n stuff
+		.rect(this.width, this.height)
+		.front()
+		.fill("black")
+		.center(world.width / 2, world.height / 2 + 300)
+	    // all interacting does is make the game say that you won,
+	    // and change the background color
+		.on("interact", function(e) {
+		    world.success = true;
+		    text.render("You win!");
+		    bg.update();
+		});
+	}
+    },
+
+    // the pink box to the side of the screen
+    princess: {
+	// dimensions
+	width: 35,
+	height: 40,
+
+	// SVG object
+	object: undefined,
+
+	// init function
+	init: function () {
+	    this.object = draw
+	    // dimensions and stuff
+		.rect(this.width, this.height)
+		.front()
+		.fill("pink")
+		.center(world.width/2 + 300, world.height/2)
+	    // display dialogue
+		.on("interact", function(e) {
+		    if (world.success) {
+			text.render('"Nicely done."');
+		    }
+		    else {
+			text.render('"You should interact with that box."');
+		    }
+		});
+	}
+    }
+}
+
 // ================================================================
 
 // MISC. HELPERS
@@ -259,10 +309,8 @@ var rboxIntersect = function (shape1, shape2) {
 
 // ================================================================
 
-
 // INPUT PROCESSING
 // ----------------------------------------------------------------
-
 // the input processing triggers for when the game is active
 var setGameInput = function () {
 
@@ -287,7 +335,7 @@ var setGameInput = function () {
 	    // D
 	case 68: player.dirX =  1; break;
 	    // E
-	case 69: player.object.fire("interact", {object: box.object}); break;
+	case 69: player.object.fire("interact"); break;
 	}
     }
 
@@ -317,7 +365,9 @@ var setGameInput = function () {
 var start = function () {
     world.init();
     player.init();
-    box.init();
+    for (var key in entities) {
+	entities[key].init();
+    }
     text.init();
     bg.init();
     setGameInput();
